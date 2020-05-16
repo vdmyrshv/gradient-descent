@@ -55,24 +55,40 @@ class LinearRegression {
 
 	// }
 
-	gradientDescent() {
-		const currentGuesses = this.features.matMul(this.weights)
-		const differences = currentGuesses.sub(this.labels)
-		const slopes = this.features
+	gradientDescent(features, labels) {
+		const currentGuesses = features.matMul(this.weights)
+		const differences = currentGuesses.sub(labels)
+		const slopes = features
 			.transpose()
 			.matMul(differences)
-			.div(this.features.shape[0]) //remember, [0] is to get the rows, or the first value int he shape
+			.div(features.shape[0]) //remember, [0] is to get the rows, or the first value int he shape
 
 		this.weights = this.weights.sub(slopes.mul(this.options.learningRate))
 	}
 
 	train() {
+		const { batchSize } = this.options
+		const batchQuantity = Math.floor(this.features.shape[0] / batchSize)
 		for (let i = 0; i < this.options.iterations; i++) {
-			this.gradientDescent()
+			for (let j = 0; j < batchQuantity; j++) {
+				const featureSlice = this.features.slice(
+					[batchSize * j, 0],
+					[batchSize, -1]
+				)
+				const labelSlice = this.labels.slice(
+					[batchSize * j, 0],
+					[batchSize, -1]
+				)
+				this.gradientDescent(featureSlice, labelSlice)
+			}
 			this.recordMSE()
 			this.updateLearningRate()
 		}
-	}
+    }
+    
+    predict(observations){
+        return this.processFeatures(observations).matMul(this.weights)
+    }
 
 	test(testFeatures, testLabels) {
 		testFeatures = this.processFeatures(testFeatures)
@@ -126,7 +142,7 @@ class LinearRegression {
 	}
 
 	updateLearningRate() {
-		//console.log(this.options.learningRate)
+		console.log(this.options.learningRate)
 		// if(this.mseHistory.length < 2){
 		//     return
 		// }
