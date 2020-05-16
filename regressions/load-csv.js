@@ -15,7 +15,7 @@ module.exports = function loadCSV(
   filename,
   {
     dataColumns = [],
-    labelColumns = [],
+    labelColumns = [],  
     converters = {},
     shuffle = false,
     splitTest = false
