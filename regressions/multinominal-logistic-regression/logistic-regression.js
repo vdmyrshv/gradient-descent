@@ -20,7 +20,7 @@ class LogisticRegression {
 		//this.options = Object.assign({learningRate: 0.1, }, options)
 		this.options = { learningRate: 0.1, iterations: 1000, decisionBoundary: 0.5, ...options }
 
-		this.weights = tf.zeros([this.features.shape[1], 1])
+		this.weights = tf.zeros([this.features.shape[1], this.labels.shape[1]])
 
 		this.costHistory = []
 	}
@@ -56,8 +56,8 @@ class LogisticRegression {
 	// }
 
 	gradientDescent(features, labels) {
-		//THE ONLY CHANGE YOU HAVE TO DO IS CHAIN ON .SIGMOID!!! .sigmoid method performs an elementwise operation on the tensor multiplying by sigmoid
-		const currentGuesses = features.matMul(this.weights).sigmoid()
+		//to change the prediction from a marginal probability distribution problem to a conditional probability distribution problem use softmax equation here instead of sigmoid
+		const currentGuesses = features.matMul(this.weights).softmax()
 		const differences = currentGuesses.sub(labels)
 		const slopes = features
 			.transpose()
@@ -89,22 +89,18 @@ class LogisticRegression {
 
 	predict(observations) {
 
-        const { decisionBoundary } = this.options
-
 		//call sigmoid method here as well
 		return this.processFeatures(observations)
 			.matMul(this.weights)
-			.sigmoid()
-            .greater(decisionBoundary)
-            .cast('float32') //tells tf to treat the output of the .greater() method as a float32 as opposed to a boolean
-            //the .round() method would be here if the decision boundary was simply 50%, but .greater() allows for manual manipulation of the decision boundary, the passed argument inside is the prob at which 1
-            //DEBUGGING: also, when using the .greater() method, tensorflow will regard the outputs as booleans
+			.softmax() //to change the prediction from a marginal probability distribution problem to a conditional probability distribution problem use softmax equation here instead of sigmoid
+			.argMax(1) //1 says to get argmax over the 1 axis
 	}
 
 	test(testFeatures, testLabels) {
 		const predictions = this.predict(testFeatures)
-		testLabels = tf.tensor(testLabels)
-		const incorrect = predictions.sub(testLabels).abs().sum().get()
+		testLabels = tf.tensor(testLabels).argMax(1)
+
+		const incorrect = predictions.notEqual(testLabels).sum().get() //notEqual operation returns a 1 if the columns dont match and a 0 otherwise
 
 		return (predictions.shape[0] - incorrect) / predictions.shape[0]
 	}
