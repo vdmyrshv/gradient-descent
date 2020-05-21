@@ -18,7 +18,13 @@ class LogisticRegression {
 		//this.features = this.processFeatures(this.features)
 
 		//this.options = Object.assign({learningRate: 0.1, }, options)
-		this.options = { learningRate: 0.1, iterations: 1000, decisionBoundary: 0.5, batchSize: 10, ...options }
+		this.options = {
+			learningRate: 0.1,
+			iterations: 1000,
+			decisionBoundary: 0.5,
+			batchSize: 10,
+			...options
+		}
 
 		this.weights = tf.zeros([this.features.shape[1], this.labels.shape[1]])
 
@@ -64,7 +70,7 @@ class LogisticRegression {
 			.matMul(differences)
 			.div(features.shape[0]) //remember, [0] is to get the rows, or the first value int he shape
 
-		this.weights = this.weights.sub(slopes.mul(this.options.learningRate))
+		return this.weights.sub(slopes.mul(this.options.learningRate))
 	}
 
 	train() {
@@ -72,15 +78,17 @@ class LogisticRegression {
 		const batchQuantity = Math.floor(this.features.shape[0] / batchSize)
 		for (let i = 0; i < this.options.iterations; i++) {
 			for (let j = 0; j < batchQuantity; j++) {
-				const featureSlice = this.features.slice(
-					[batchSize * j, 0],
-					[batchSize, -1]
-				)
-				const labelSlice = this.labels.slice(
-					[batchSize * j, 0],
-					[batchSize, -1]
-				)
-				this.gradientDescent(featureSlice, labelSlice)
+				this.weights = tf.tidy(() => {
+					const featureSlice = this.features.slice(
+						[batchSize * j, 0],
+						[batchSize, -1]
+					)
+					const labelSlice = this.labels.slice(
+						[batchSize * j, 0],
+						[batchSize, -1]
+					)
+					return this.gradientDescent(featureSlice, labelSlice)
+				})
 			}
 			this.recordCost()
 			this.updateLearningRate()
@@ -88,7 +96,6 @@ class LogisticRegression {
 	}
 
 	predict(observations) {
-
 		//call sigmoid method here as well
 		return this.processFeatures(observations)
 			.matMul(this.weights)
@@ -124,11 +131,11 @@ class LogisticRegression {
 
 		//the below step is a slightly circuitous way of removing zero variance (tensorflow has no direct way)
 		//because a zero variance will cause a divide by Zero (NaN) in the standardization when dividing to get the standard deviations
-		//this method casts the variance array as boolean, does the equivalent of a ! on it (logicalNot), then adds that 
+		//this method casts the variance array as boolean, does the equivalent of a ! on it (logicalNot), then adds that
 		//back to the variance - when calculating standard deviations, the numerator of the operation will be zero
 		//because both the mean of the zero column and all the values are zero
 
-		const filler = variance.cast('bool').logicalNot().cast('float32')
+		const filler = variance.cast("bool").logicalNot().cast("float32")
 
 		//NOTE: you can create instance variables outside of the constructor as you see here
 		//even though the instance variables are created here, they're "global" class variables
@@ -139,14 +146,23 @@ class LogisticRegression {
 	}
 
 	recordCost() {
-        const guesses = this.features.matMul(this.weights).sigmoid()
+		const cost = tf.tidy(() => {
+			const guesses = this.features.matMul(this.weights).sigmoid()
 
-        const termOne = this.labels.transpose().matMul(guesses.log())
-        const termTwo = this.labels.mul(-1).add(1).transpose().matMul(
-            guesses.mul(-1).add(1).log()
-        )
+			const termOne = this.labels.transpose().matMul(guesses.add(1e-7).log())  //TRCIK: adding a tiny amount onto an almost zero amount will allow the value to not be an error when log is taken
 
-        const cost = termOne.add(termTwo).div(this.features.shape[0]).mul(-1).get(0,0)
+			const termTwo = this.labels
+				.mul(-1)
+				.add(1)
+				.transpose()
+				.matMul(guesses.mul(-1).add(1).add(1e-7).log())  //TRCIK: adding a tiny amount onto an almost zero amount will allow the value to not be an error when log is taken
+
+			return termOne
+				.add(termTwo)
+				.div(this.features.shape[0])
+				.mul(-1)
+				.get(0, 0)
+		})
 
 		//using unshift instead of push can make it easier to access the most recently added values to an array
 		//for example see below in updateLearningRate(), instead of putting array.length-1 in property accessor, just use 0 and 1 indices
